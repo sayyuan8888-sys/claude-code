@@ -1,0 +1,5 @@
+{
+  "commit-push-pr.md": "Bash(git checkout --branch:*), Bash(git add:*), Bash(git status:*), Bash(git push:*), Bash(git commit:*), Bash(gh pr create:*)",
+  "dedupe.md": "Bash(./scripts/gh.sh:*), Bash(./scripts/comment-on-duplicates.sh:*)",
+  "triage-issue.md": "Bash(./scripts/gh.sh:*),Bash(./scripts/edit-issue-labels.sh:*)"
+}

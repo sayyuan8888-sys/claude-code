@@ -6,6 +6,33 @@ declare global {
   };
 }
 
+export interface PaginationInput {
+  oldestIssueNumber: number | undefined;
+  minIssueNumber: number;
+  maxIssueNumber: number;
+  page: number;
+  pageLimit: number;
+  filteredCount: number;
+  pageCount: number;
+}
+
+export function shouldStopPagination(input: PaginationInput): { stop: boolean; reason?: string } {
+  const { oldestIssueNumber, minIssueNumber, maxIssueNumber, page, pageLimit, filteredCount, pageCount } = input;
+
+  if (oldestIssueNumber !== undefined && oldestIssueNumber < minIssueNumber) {
+    return { stop: true, reason: "oldest issue below minimum" };
+  }
+
+  if (page > pageLimit) {
+    return { stop: true, reason: "reached page limit" };
+  }
+
+  // If oldest is still above max, keep going (haven't reached the range yet)
+  // If no filtered issues but there are page issues, keep going (gap in range)
+  // Otherwise, continue normally
+  return { stop: false };
+}
+
 interface GitHubIssue {
   number: number;
   title: string;
@@ -207,7 +234,6 @@ Environment Variables:
   );
 }
 
-backfillDuplicateComments().catch(console.error);
-
-// Make it a module
-export {};
+if (import.meta.main) {
+  backfillDuplicateComments().catch(console.error);
+}

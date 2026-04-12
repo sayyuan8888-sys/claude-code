@@ -2,10 +2,43 @@
 
 import { lifecycle, STALE_UPVOTE_THRESHOLD } from "./issue-lifecycle.ts";
 
+// -- Exported predicates for testability --
+
+export function shouldSkipForStale(issue: any, cutoff: Date): { skip: boolean; reason?: string } {
+  if (issue.pull_request) return { skip: true, reason: "is pull request" };
+  if (issue.locked) return { skip: true, reason: "is locked" };
+  if (issue.assignees?.length > 0) return { skip: true, reason: "has assignees" };
+
+  const updatedAt = new Date(issue.updated_at);
+  if (updatedAt > cutoff) return { skip: true, reason: "updated recently" };
+
+  const alreadyStale = issue.labels?.some(
+    (l: any) => l.name === "stale" || l.name === "autoclose"
+  );
+  if (alreadyStale) return { skip: true, reason: "already stale/autoclose" };
+
+  const thumbsUp = issue.reactions?.["+1"] ?? 0;
+  if (thumbsUp >= STALE_UPVOTE_THRESHOLD) return { skip: true, reason: "has enough upvotes" };
+
+  return { skip: false };
+}
+
+export function shouldSkipForClose(issue: any, hasHumanComment: boolean): { skip: boolean; reason?: string } {
+  if (issue.pull_request) return { skip: true, reason: "is pull request" };
+  if (issue.locked) return { skip: true, reason: "is locked" };
+
+  const thumbsUp = issue.reactions?.["+1"] ?? 0;
+  if (thumbsUp >= STALE_UPVOTE_THRESHOLD) return { skip: true, reason: "has enough upvotes" };
+
+  if (hasHumanComment) return { skip: true, reason: "has human comment after label" };
+
+  return { skip: false };
+}
+
 // --
 
 const NEW_ISSUE = "https://github.com/anthropics/claude-code/issues/new/choose";
-const DRY_RUN = process.argv.includes("--dry-run");
+const DRY_RUN = !import.meta.main ? false : process.argv.includes("--dry-run");
 
 const CLOSE_MESSAGE = (reason: string) =>
   `Closing for now — ${reason}. Please [open a new issue](${NEW_ISSUE}) if this is still relevant.`;
@@ -155,14 +188,16 @@ async function closeExpired(owner: string, repo: string) {
 
 // --
 
-const owner = process.env.GITHUB_REPOSITORY_OWNER;
-const repo = process.env.GITHUB_REPOSITORY_NAME;
-if (!owner || !repo)
-  throw new Error("GITHUB_REPOSITORY_OWNER and GITHUB_REPOSITORY_NAME required");
+if (import.meta.main) {
+  const owner = process.env.GITHUB_REPOSITORY_OWNER;
+  const repo = process.env.GITHUB_REPOSITORY_NAME;
+  if (!owner || !repo)
+    throw new Error("GITHUB_REPOSITORY_OWNER and GITHUB_REPOSITORY_NAME required");
 
-if (DRY_RUN) console.log("DRY RUN — no changes will be made\n");
+  if (DRY_RUN) console.log("DRY RUN — no changes will be made\n");
 
-const labeled = await markStale(owner, repo);
-const closed = await closeExpired(owner, repo);
+  const labeled = await markStale(owner, repo);
+  const closed = await closeExpired(owner, repo);
 
-console.log(`\nDone: ${labeled} ${DRY_RUN ? "would be labeled" : "labeled"} stale, ${closed} ${DRY_RUN ? "would be closed" : "closed"}`);
+  console.log(`\nDone: ${labeled} ${DRY_RUN ? "would be labeled" : "labeled"} stale, ${closed} ${DRY_RUN ? "would be closed" : "closed"}`);
+}
