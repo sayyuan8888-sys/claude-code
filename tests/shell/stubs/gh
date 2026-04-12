@@ -1,0 +1,51 @@
+#!/usr/bin/env bash
+# Stub for the gh CLI used by shell tests.
+#
+# Behavior controlled by environment variables:
+#   GH_STUB_MODE        - "record" (default): write argv to GH_STUB_CALLS
+#                        - "fail": exit 1
+#                        - "echo": print argv to stdout
+#   GH_STUB_CALLS       - File path to append recorded invocations
+#   GH_STUB_STDOUT      - If set, print this string to stdout (default command)
+#   GH_STUB_EXIT        - Exit code (default: 0)
+#   GH_STUB_LABEL_LIST  - Stdout for "label list" commands (newline-separated labels)
+
+MODE="${GH_STUB_MODE:-record}"
+EXIT_CODE="${GH_STUB_EXIT:-0}"
+CMD="${1:-} ${2:-}"
+
+# Always record the call
+if [[ -n "${GH_STUB_CALLS:-}" ]]; then
+  echo "$*" >> "$GH_STUB_CALLS"
+fi
+
+case "$MODE" in
+  fail)
+    exit 1
+    ;;
+  echo)
+    echo "$*"
+    exit "$EXIT_CODE"
+    ;;
+esac
+
+# Command-specific responses
+case "$CMD" in
+  "label list")
+    if [[ -n "${GH_STUB_LABEL_LIST:-}" ]]; then
+      echo "$GH_STUB_LABEL_LIST"
+    fi
+    ;;
+  "issue view"|"issue edit"|"issue comment")
+    if [[ -n "${GH_STUB_STDOUT:-}" ]]; then
+      echo "$GH_STUB_STDOUT"
+    fi
+    ;;
+  *)
+    if [[ -n "${GH_STUB_STDOUT:-}" ]]; then
+      echo "$GH_STUB_STDOUT"
+    fi
+    ;;
+esac
+
+exit "$EXIT_CODE"

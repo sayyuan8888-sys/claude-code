@@ -46,7 +46,7 @@ async function githubRequest<T>(endpoint: string, token: string, method: string 
   return response.json();
 }
 
-function extractDuplicateIssueNumber(commentBody: string): number | null {
+export function extractDuplicateIssueNumber(commentBody: string): number | null {
   // Try to match #123 format first
   let match = commentBody.match(/#(\d+)/);
   if (match) {
@@ -62,6 +62,63 @@ function extractDuplicateIssueNumber(commentBody: string): number | null {
   return null;
 }
 
+
+export interface AutoCloseInput {
+  issue: GitHubIssue;
+  comments: GitHubComment[];
+  reactions: GitHubReaction[];
+  threeDaysAgo: Date;
+}
+
+export interface AutoCloseResult {
+  shouldClose: boolean;
+  reason: string;
+  duplicateOf?: number;
+}
+
+export function shouldAutoClose(input: AutoCloseInput): AutoCloseResult {
+  const { issue, comments, reactions, threeDaysAgo } = input;
+
+  const dupeComments = comments.filter(
+    (comment) =>
+      comment.body.includes("Found") &&
+      comment.body.includes("possible duplicate") &&
+      comment.user.type === "Bot"
+  );
+
+  if (dupeComments.length === 0) {
+    return { shouldClose: false, reason: "no duplicate comments found" };
+  }
+
+  const lastDupeComment = dupeComments[dupeComments.length - 1];
+  const dupeCommentDate = new Date(lastDupeComment.created_at);
+
+  if (dupeCommentDate > threeDaysAgo) {
+    return { shouldClose: false, reason: "duplicate comment is too recent" };
+  }
+
+  const commentsAfterDupe = comments.filter(
+    (comment) => new Date(comment.created_at) > dupeCommentDate
+  );
+  if (commentsAfterDupe.length > 0) {
+    return { shouldClose: false, reason: "has activity after duplicate comment" };
+  }
+
+  const authorThumbsDown = reactions.some(
+    (reaction) =>
+      reaction.user.id === issue.user.id && reaction.content === "-1"
+  );
+  if (authorThumbsDown) {
+    return { shouldClose: false, reason: "author disagreed with duplicate detection" };
+  }
+
+  const duplicateIssueNumber = extractDuplicateIssueNumber(lastDupeComment.body);
+  if (!duplicateIssueNumber) {
+    return { shouldClose: false, reason: "could not extract duplicate issue number" };
+  }
+
+  return { shouldClose: true, reason: "confirmed duplicate", duplicateOf: duplicateIssueNumber };
+}
 
 async function closeIssueAsDuplicate(
   owner: string,
@@ -271,7 +328,6 @@ async function autoCloseDuplicates(): Promise<void> {
   );
 }
 
-autoCloseDuplicates().catch(console.error);
-
-// Make it a module
-export {};
+if (import.meta.main) {
+  autoCloseDuplicates().catch(console.error);
+}
