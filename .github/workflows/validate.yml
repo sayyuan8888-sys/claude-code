@@ -23,8 +23,8 @@ jobs:
         with:
           python-version: "3.12"
 
-      - name: Install pytest
-        run: pip install pytest
+      - name: Install pytest and pyyaml
+        run: pip install pytest pyyaml
 
       - name: Run all tests
         run: bash scripts/run-tests.sh

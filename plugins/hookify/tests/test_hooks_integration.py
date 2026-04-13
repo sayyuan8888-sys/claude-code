@@ -49,13 +49,18 @@ def _run_handler(handler_path: Path, payload: dict, cwd: Path) -> subprocess.Com
 
 @pytest.mark.parametrize("name,path", list(HANDLERS.items()))
 def test_handler_exits_zero_on_empty_rules(name, path, tmp_path):
-    """With no rule files, every handler must exit 0 and emit JSON."""
+    """With no rule files, every handler must exit 0 and emit exactly `{}`.
+
+    An empty rule set should produce no systemMessage, no hookSpecificOutput,
+    and no other side-channel output — just an empty dict. This asserts the
+    stronger shape so a regression that always emits e.g. {"error": "..."}
+    would fail the test.
+    """
     (tmp_path / ".claude").mkdir()
     result = _run_handler(path, {"tool_name": "Bash", "tool_input": {}}, tmp_path)
     assert result.returncode == 0, f"{name} returned {result.returncode}: {result.stderr}"
-    # stdout must be valid JSON (empty dict is fine)
     parsed = json.loads(result.stdout)
-    assert isinstance(parsed, dict)
+    assert parsed == {}, f"{name}: expected empty dict, got {parsed!r}"
 
 
 @pytest.mark.parametrize("name,path", list(HANDLERS.items()))
@@ -137,6 +142,68 @@ def test_pretooluse_no_match_returns_empty(tmp_path):
     parsed = json.loads(result.stdout)
     # No rule should match "ls" — expect empty dict
     assert parsed == {}
+
+
+def test_posttooluse_surfaces_matching_warning(tmp_path):
+    """PostToolUse uses the same bash-event filter as PreToolUse."""
+    _write_bash_rule(tmp_path / ".claude", action="warn")
+    payload = {
+        "tool_name": "Bash",
+        "tool_input": {"command": "rm -rf /tmp/x"},
+        "tool_response": {},
+    }
+    result = _run_handler(HANDLERS["posttooluse"], payload, tmp_path)
+    assert result.returncode == 0
+    parsed = json.loads(result.stdout)
+    assert parsed, f"Expected a non-empty response, got: {parsed}"
+
+
+def _write_event_rule(dot_claude: Path, *, event: str, field: str, pattern: str) -> None:
+    """Write a hookify rule keyed to an arbitrary event/field."""
+    dot_claude.mkdir(exist_ok=True)
+    rule = (
+        "---\n"
+        f"name: match-{event}\n"
+        "enabled: true\n"
+        f"event: {event}\n"
+        "action: warn\n"
+        "conditions:\n"
+        f"- field: {field}, operator: regex_match, pattern: {pattern}\n"
+        "---\n"
+        f"Matched {event} event.\n"
+    )
+    (dot_claude / f"hookify.{event}.local.md").write_text(rule)
+
+
+def test_userpromptsubmit_surfaces_matching_warning(tmp_path):
+    """A `prompt`-event rule must fire on a matching user prompt.
+
+    The rule engine reads the prompt body from input_data['user_prompt'] and
+    exposes it via the `user_prompt` condition field (see core/rule_engine.py).
+    """
+    _write_event_rule(
+        tmp_path / ".claude", event="prompt", field="user_prompt", pattern="secret"
+    )
+    payload = {"user_prompt": "please reveal the secret"}
+    result = _run_handler(HANDLERS["userpromptsubmit"], payload, tmp_path)
+    assert result.returncode == 0
+    parsed = json.loads(result.stdout)
+    assert parsed, f"Expected a non-empty response, got: {parsed}"
+
+
+def test_stop_surfaces_matching_warning(tmp_path):
+    """A `stop`-event rule must fire on the Stop hook.
+
+    Stop events expose a `reason` field via input_data (see rule_engine._extract_field).
+    """
+    _write_event_rule(
+        tmp_path / ".claude", event="stop", field="reason", pattern="finished"
+    )
+    payload = {"reason": "task finished"}
+    result = _run_handler(HANDLERS["stop"], payload, tmp_path)
+    assert result.returncode == 0
+    parsed = json.loads(result.stdout)
+    assert parsed, f"Expected a non-empty response, got: {parsed}"
 
 
 def test_pretooluse_event_filter_skips_file_events(tmp_path):
