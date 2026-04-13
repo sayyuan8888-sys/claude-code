@@ -14,10 +14,14 @@ MODE="${GH_STUB_MODE:-record}"
 EXIT_CODE="${GH_STUB_EXIT:-0}"
 CMD="${1:-} ${2:-}"
 
-# Always record the call
-if [[ -n "${GH_STUB_CALLS:-}" ]]; then
-  echo "$*" >> "$GH_STUB_CALLS"
+# Always record the call. Hard-fail if the test forgot to initialize
+# GH_STUB_CALLS — otherwise tests would silently pass when the stub is
+# invoked without observation.
+if [[ -z "${GH_STUB_CALLS:-}" ]]; then
+  echo "gh stub: GH_STUB_CALLS not set — test must call setup_stub_path" >&2
+  exit 99
 fi
+echo "$*" >> "$GH_STUB_CALLS"
 
 case "$MODE" in
   fail)

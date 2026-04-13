@@ -104,35 +104,41 @@ test_deny_issue_edit() {
   run_gh issue edit 123
   assert_exit_code 1 "$_RC" || return 1
   assert_stderr_contains "only" "$_STDERR" || return 1
+  assert_stub_not_called "$GH_STUB_CALLS" || return 1
 }
 
 test_deny_issue_comment() {
   run_gh issue comment 123
   assert_exit_code 1 "$_RC" || return 1
   assert_stderr_contains "only" "$_STDERR" || return 1
+  assert_stub_not_called "$GH_STUB_CALLS" || return 1
 }
 
 test_deny_issue_close() {
   run_gh issue close 123
   assert_exit_code 1 "$_RC" || return 1
   assert_stderr_contains "only" "$_STDERR" || return 1
+  assert_stub_not_called "$GH_STUB_CALLS" || return 1
 }
 
 test_deny_pr_view() {
   run_gh pr view 123
   assert_exit_code 1 "$_RC" || return 1
   assert_stderr_contains "only" "$_STDERR" || return 1
+  assert_stub_not_called "$GH_STUB_CALLS" || return 1
 }
 
 test_deny_repo_view() {
   run_gh repo view
   assert_exit_code 1 "$_RC" || return 1
   assert_stderr_contains "only" "$_STDERR" || return 1
+  assert_stub_not_called "$GH_STUB_CALLS" || return 1
 }
 
 test_deny_no_subcommand() {
   run_gh issue
   assert_exit_code 1 "$_RC" || return 1
+  assert_stub_not_called "$GH_STUB_CALLS" || return 1
 }
 
 # ── Denied flag tests ─────────────────────────────────────────────
@@ -141,24 +147,28 @@ test_deny_json_flag() {
   run_gh issue list --json title
   assert_exit_code 1 "$_RC" || return 1
   assert_stderr_contains "only --comments" "$_STDERR" || return 1
+  assert_stub_not_called "$GH_STUB_CALLS" || return 1
 }
 
 test_deny_jq_flag() {
   run_gh issue list --jq '.title'
   assert_exit_code 1 "$_RC" || return 1
   assert_stderr_contains "only --comments" "$_STDERR" || return 1
+  assert_stub_not_called "$GH_STUB_CALLS" || return 1
 }
 
 test_deny_web_flag() {
   run_gh issue view 123 --web
   assert_exit_code 1 "$_RC" || return 1
   assert_stderr_contains "only --comments" "$_STDERR" || return 1
+  assert_stub_not_called "$GH_STUB_CALLS" || return 1
 }
 
 test_deny_repo_flag() {
   run_gh issue list --repo other/repo
   assert_exit_code 1 "$_RC" || return 1
   assert_stderr_contains "only --comments" "$_STDERR" || return 1
+  assert_stub_not_called "$GH_STUB_CALLS" || return 1
 }
 
 # ── Search qualifier rejection ────────────────────────────────────
@@ -167,30 +177,35 @@ test_deny_search_repo_qualifier() {
   run_gh search issues "repo:foo/bar hello" --limit 5
   assert_exit_code 1 "$_RC" || return 1
   assert_stderr_contains "must not contain" "$_STDERR" || return 1
+  assert_stub_not_called "$GH_STUB_CALLS" || return 1
 }
 
 test_deny_search_org_qualifier() {
   run_gh search issues "org:anthropic bugs" --limit 5
   assert_exit_code 1 "$_RC" || return 1
   assert_stderr_contains "must not contain" "$_STDERR" || return 1
+  assert_stub_not_called "$GH_STUB_CALLS" || return 1
 }
 
 test_deny_search_user_qualifier() {
   run_gh search issues "user:bob issue" --limit 5
   assert_exit_code 1 "$_RC" || return 1
   assert_stderr_contains "must not contain" "$_STDERR" || return 1
+  assert_stub_not_called "$GH_STUB_CALLS" || return 1
 }
 
 test_deny_search_repo_qualifier_uppercase() {
   run_gh search issues "REPO:foo/bar hello" --limit 5
   assert_exit_code 1 "$_RC" || return 1
   assert_stderr_contains "must not contain" "$_STDERR" || return 1
+  assert_stub_not_called "$GH_STUB_CALLS" || return 1
 }
 
 test_deny_search_embedded_qualifier() {
   run_gh search issues "hello repo:x world" --limit 5
   assert_exit_code 1 "$_RC" || return 1
   assert_stderr_contains "must not contain" "$_STDERR" || return 1
+  assert_stub_not_called "$GH_STUB_CALLS" || return 1
 }
 
 # ── issue view validation ─────────────────────────────────────────
@@ -199,18 +214,21 @@ test_issue_view_nonnumeric() {
   run_gh issue view abc
   assert_exit_code 1 "$_RC" || return 1
   assert_stderr_contains "numeric" "$_STDERR" || return 1
+  assert_stub_not_called "$GH_STUB_CALLS" || return 1
 }
 
 test_issue_view_multiple_positional() {
   run_gh issue view 123 456
   assert_exit_code 1 "$_RC" || return 1
   assert_stderr_contains "exactly one" "$_STDERR" || return 1
+  assert_stub_not_called "$GH_STUB_CALLS" || return 1
 }
 
 test_issue_view_no_arg() {
   run_gh issue view
   assert_exit_code 1 "$_RC" || return 1
   assert_stderr_contains "exactly one" "$_STDERR" || return 1
+  assert_stub_not_called "$GH_STUB_CALLS" || return 1
 }
 
 # ── issue list / label list positional rejection ──────────────────
@@ -219,12 +237,14 @@ test_issue_list_positional_rejected() {
   run_gh issue list 123
   assert_exit_code 1 "$_RC" || return 1
   assert_stderr_contains "do not accept positional" "$_STDERR" || return 1
+  assert_stub_not_called "$GH_STUB_CALLS" || return 1
 }
 
 test_label_list_positional_rejected() {
   run_gh label list somename
   assert_exit_code 1 "$_RC" || return 1
   assert_stderr_contains "do not accept positional" "$_STDERR" || return 1
+  assert_stub_not_called "$GH_STUB_CALLS" || return 1
 }
 
 # ── Environment precondition tests ────────────────────────────────
@@ -233,18 +253,21 @@ test_no_repo_env() {
   run_gh_no_repo issue view 123
   assert_exit_code 1 "$_RC" || return 1
   assert_stderr_contains "GH_REPO" "$_STDERR" || return 1
+  assert_stub_not_called "$GH_STUB_CALLS" || return 1
 }
 
 test_malformed_repo_no_slash() {
   run_gh_custom_repo "noslash" issue view 123
   assert_exit_code 1 "$_RC" || return 1
   assert_stderr_contains "owner/repo" "$_STDERR" || return 1
+  assert_stub_not_called "$GH_STUB_CALLS" || return 1
 }
 
 test_malformed_repo_too_many_slashes() {
   run_gh_custom_repo "a/b/c" issue view 123
   assert_exit_code 1 "$_RC" || return 1
   assert_stderr_contains "owner/repo" "$_STDERR" || return 1
+  assert_stub_not_called "$GH_STUB_CALLS" || return 1
 }
 
 # ── Run all tests ─────────────────────────────────────────────────
