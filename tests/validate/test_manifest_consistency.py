@@ -40,6 +40,61 @@ class TestMarketplaceJson:
             abs_path = (REPO_ROOT / source).resolve()
             assert abs_path.is_dir(), f"Source path does not exist: {source}"
 
+    def test_every_category_is_known(self):
+        # Keep this allow-list in sync with categories actually used in the
+        # marketplace UI. Adding a new category is a deliberate decision —
+        # extend the set here when doing so.
+        allowed = {"development", "learning", "productivity", "security"}
+        data = json.loads(MARKETPLACE_JSON.read_text())
+        for plugin in data["plugins"]:
+            category = plugin.get("category")
+            assert category in allowed, (
+                f"Plugin '{plugin.get('name', '?')}' has unknown category "
+                f"{category!r}; allowed: {sorted(allowed)}"
+            )
+
+
+class TestPluginJsonShape:
+    """Validate individual plugin.json files where present.
+
+    plugin.json is OPTIONAL per CLAUDE.md, so we don't require presence.
+    But when a plugin ships one, it must be well-formed.
+    """
+
+    @staticmethod
+    def _plugin_json_paths():
+        return sorted(PLUGINS_DIR.glob("*/.claude-plugin/plugin.json"))
+
+    def test_parses_as_json_object(self):
+        for path in self._plugin_json_paths():
+            data = json.loads(path.read_text())
+            assert isinstance(data, dict), f"{path} must be a JSON object"
+
+    def test_has_required_fields(self):
+        required = {"name", "description"}
+        for path in self._plugin_json_paths():
+            data = json.loads(path.read_text())
+            missing = required - set(data.keys())
+            assert not missing, f"{path} missing fields: {missing}"
+
+    def test_name_matches_directory(self):
+        for path in self._plugin_json_paths():
+            data = json.loads(path.read_text())
+            dir_name = path.parent.parent.name
+            assert data.get("name") == dir_name, (
+                f"{path} name={data.get('name')!r} does not match "
+                f"directory {dir_name!r}"
+            )
+
+    def test_author_shape_when_present(self):
+        for path in self._plugin_json_paths():
+            data = json.loads(path.read_text())
+            if "author" not in data:
+                continue
+            author = data["author"]
+            assert isinstance(author, dict), f"{path}: 'author' must be an object"
+            assert "name" in author, f"{path}: 'author' missing 'name'"
+
 
 class TestPluginDirectoryConsistency:
     @staticmethod
