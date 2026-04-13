@@ -10,8 +10,9 @@ This is the public-facing repository for **Claude Code**, Anthropic's agentic co
 2. **Issue & PR automation** — GitHub Actions workflows plus TypeScript/Bash scripts that use Claude Code itself to triage issues, dedupe, and run lifecycle automation (`.github/workflows/`, `scripts/`, `.claude/commands/`).
 3. **Examples and reference material** — sample settings files, hook examples, and a devcontainer (`examples/`, `.devcontainer/`).
 4. **User-facing docs** — `README.md`, `CHANGELOG.md` (release notes for the CLI), `SECURITY.md`.
+5. **Test suite** for the automation and hook scripts (`tests/`, `pytest.ini`, `scripts/run-tests.sh`, `.github/workflows/validate.yml`).
 
-There is **no application source code to build or test** at the repo root. Do not look for a `package.json`, `tsconfig.json`, or a `src/` directory in the root — there isn't one. Anything that looks like a build target lives inside a specific plugin or script.
+There is **no application source code to build** at the repo root — no `package.json`, `tsconfig.json`, or `src/` directory. Anything that looks like a build target lives inside a specific plugin or script. However, there **is** a test suite that covers the automation scripts and reference hooks; see "Testing" below.
 
 ## Top-level layout
 
@@ -27,8 +28,11 @@ claude-code/
 │   └── init-firewall.sh
 ├── .github/
 │   ├── ISSUE_TEMPLATE/        # bug_report, feature_request, documentation, model_behavior
-│   └── workflows/             # Claude-powered issue automation (see "GitHub automation")
+│   └── workflows/             # Claude-powered issue automation + validate.yml (see "GitHub automation")
+├── .vscode/
+│   └── extensions.json        # Recommended VS Code extensions (eslint, prettier, remote-containers, gitlens)
 ├── CHANGELOG.md               # Release notes for the Claude Code CLI (not for this repo)
+├── CLAUDE.md                  # This file
 ├── README.md                  # User-facing install + usage instructions
 ├── SECURITY.md                # HackerOne disclosure policy
 ├── Script/
@@ -38,7 +42,9 @@ claude-code/
 │   ├── hooks/                 # bash_command_validator_example.py (PreToolUse hook sample)
 │   └── settings/              # settings-lax, settings-strict, settings-bash-sandbox
 ├── plugins/                   # The bundled plugins (see below)
-└── scripts/                   # Automation scripts invoked from GitHub Actions and slash commands
+├── pytest.ini                 # Pytest config (testpaths + pythonpath for the test suite)
+├── scripts/                   # Automation scripts invoked from GitHub Actions and slash commands
+└── tests/                     # Shell / TypeScript / Python / validation test suite
 ```
 
 ## Bundled plugins (`plugins/`)
@@ -119,8 +125,35 @@ Most workflows invoke Claude Code itself via `anthropics/claude-code-action@v1` 
 - `issue-lifecycle-comment.yml`, `lock-closed-issues.yml`, `remove-autoclose-label.yml`, `log-issue-events.yml`, `sweep.yml` — Lifecycle maintenance.
 - `issue-opened-dispatch.yml` — Central dispatcher fired on issue open.
 - `non-write-users-check.yml` — Guards workflows against untrusted input.
+- `validate.yml` — **CI for this repo.** Runs on every `pull_request` and `push`: installs Bun + Python 3.12 and executes `bash scripts/run-tests.sh` (shell → TypeScript → Python tests). This is the only workflow that is not Claude-driven; it's the gate that keeps the automation scripts and hooks from regressing.
 
 When adding a new Claude-invoking workflow, follow the pattern in `claude-dedupe-issues.yml`: scoped permissions, pinned action version, explicit model, and `CLAUDE_CODE_SCRIPT_CAPS` for any scripts the workflow allows Claude to execute.
+
+## Tests (`tests/`, `pytest.ini`, `scripts/run-tests.sh`)
+
+The repo has a real test suite that covers the automation scripts and reference hooks. `scripts/run-tests.sh` is the single entrypoint and runs three stages in order:
+
+1. **Shell tests** — `bash tests/shell/run.sh`
+   - `test_gh_wrapper.sh`, `test_edit_issue_labels.sh`, `test_comment_on_duplicates.sh`
+   - Uses `tests/shell/stubs/gh` (a fake `gh` on `$PATH`) and `tests/shell/fixtures/event-payload.json`
+   - Helpers live in `tests/shell/helpers.sh`
+2. **TypeScript tests** — `bun test tests/ts/`
+   - Covers `scripts/auto-close-duplicates.ts`, `backfill-duplicate-comments.ts`, `issue-lifecycle.ts`, `lifecycle-comment.ts`, `sweep.ts`
+   - Requires `bun` on `$PATH` (the `validate.yml` workflow installs it via `oven-sh/setup-bun@v2`)
+3. **Python tests** — `pytest` (config in `pytest.ini`)
+   - `testpaths = tests plugins/hookify/tests plugins/security-guidance/tests`
+   - `pythonpath = plugins` so hookify's package imports resolve
+   - `tests/conftest.py` exposes `security_reminder_hook` and `bash_command_validator` fixtures that load the two standalone hook scripts as modules
+   - `tests/validate/` contains **manifest-level checks**: `test_manifest_consistency.py`, `test_hooks_schema.py`, `test_command_allowed_tools.py`, `test_allowed_tools_snapshot.py` (snapshot in `tests/validate/baselines/allowed-tools.expected.json`)
+
+### When modifying automation
+
+- Changing `scripts/gh.sh`, `edit-issue-labels.sh`, or `comment-on-duplicates.sh` → re-run `bash tests/shell/run.sh`.
+- Changing any `scripts/*.ts` → re-run `bun test tests/ts/`.
+- Changing a hook in `examples/hooks/` or `plugins/*/hooks/` → re-run `pytest tests/python` (plus the plugin's own tests under `plugins/hookify/tests` / `plugins/security-guidance/tests`).
+- Changing **anything about a command's `allowed-tools` frontmatter**, a plugin's `hooks.json`, or the marketplace manifest → `pytest tests/validate` will catch drift. If you legitimately change the `allowed-tools` surface, regenerate the snapshot in `tests/validate/baselines/allowed-tools.expected.json` in the same commit.
+
+Before opening a PR, run `bash scripts/run-tests.sh` locally — that's exactly what `validate.yml` runs in CI.
 
 ## `examples/`
 
@@ -133,7 +166,7 @@ Reference configurations users can copy:
 
 ### Don't
 
-- **Don't invent build commands.** There is no root `npm install`, `npm test`, `pytest`, or equivalent for the repo itself. Individual plugins may have their own language/tooling (hookify uses Python stdlib only, ralph-wiggum uses shell), but no repo-wide build exists.
+- **Don't invent build commands.** There is no root `npm install` or `npm test` — this repo is not a Node package. The test entrypoint is `bash scripts/run-tests.sh` (which in turn runs shell tests, `bun test tests/ts/`, and `pytest`). Individual plugins may have their own language/tooling (hookify uses Python stdlib only, ralph-wiggum uses shell), but no repo-wide **build** exists — just the test suite.
 - **Don't create a `CLAUDE.md` inside a plugin** unless the user asks — plugins communicate through their `README.md`.
 - **Don't touch `demo.gif`** — it's 11 MB and checked in. Regenerating it bloats history.
 - **Don't add raw `gh` calls** to slash commands or scripts that are invoked from workflows. Use `./scripts/gh.sh`. The wrapper exists specifically to keep Claude Code–driven automation inside a safe subset of the GitHub API.
@@ -161,10 +194,12 @@ Ripgrep/Grep is the right tool. Useful starting points:
 
 ### Testing changes
 
-- **Plugin changes**: Validate by installing the plugin in a local Claude Code session (`/plugin` or by configuring the marketplace locally). There is no repo-level plugin test harness.
-- **Slash command / script changes**: Manually run the script with representative input; the slash commands are exercised live from workflows on real issues, so be careful not to break `/triage-issue` or `/dedupe`.
-- **Hook changes**: Pipe representative JSON into the hook on stdin (`echo '{...}' | python3 hook.py`) and check exit code + stderr.
-- **JSON/YAML correctness**: `marketplace.json`, `plugin.json`, `hooks.json`, `devcontainer.json`, and every command's frontmatter must parse. A broken manifest breaks the whole marketplace.
+- **Default**: run `bash scripts/run-tests.sh` from the repo root. That's the same thing `.github/workflows/validate.yml` runs in CI (shell → TypeScript → Python).
+- **Plugin changes (behavior)**: Validate by installing the plugin in a local Claude Code session (`/plugin` or by configuring the marketplace locally). Most plugins have no runtime harness; `plugins/hookify/` and `plugins/security-guidance/` do have pytest suites that run as part of the root `pytest` invocation.
+- **Slash command / script changes**: The shell tests (`tests/shell/`) cover `gh.sh`, `edit-issue-labels.sh`, and `comment-on-duplicates.sh`. TypeScript scripts are covered by `tests/ts/`. Beyond that, the slash commands are exercised live from workflows on real issues — be careful not to break `/triage-issue` or `/dedupe`.
+- **Hook changes**: Unit-test with the `security_reminder_hook` / `bash_command_validator` fixtures in `tests/conftest.py`, or pipe representative JSON into the hook on stdin (`echo '{...}' | python3 hook.py`) and check exit code + stderr.
+- **Manifest / frontmatter changes**: `tests/validate/` parses every `plugin.json`, `hooks.json`, `marketplace.json`, and command frontmatter, and snapshots the full `allowed-tools` surface. If `pytest tests/validate` fails, fix the manifest — don't blindly regenerate the snapshot unless the surface change is intentional.
+- **JSON/YAML correctness**: `marketplace.json`, `plugin.json`, `hooks.json`, `devcontainer.json`, and every command's frontmatter must parse. A broken manifest breaks the whole marketplace (and the validation tests will catch it).
 
 ## Quick reference: where to look first
 
@@ -177,3 +212,8 @@ Ripgrep/Grep is the right tool. Useful starting points:
 | Add an example settings profile | `examples/settings/` + update the comparison table in `examples/settings/README.md` |
 | Add a reference hook | `examples/hooks/` |
 | Modify the devcontainer | `.devcontainer/` (Dockerfile, devcontainer.json, init-firewall.sh) |
+| Run the full test suite | `bash scripts/run-tests.sh` (same as CI `validate.yml`) |
+| Add tests for a shell script | `tests/shell/` (fixture in `fixtures/`, stub `gh` in `stubs/`, helpers in `helpers.sh`) |
+| Add tests for a TS script | `tests/ts/` — `bun test tests/ts/` |
+| Add tests for a hook / Python script | `tests/python/` (plus fixtures in `tests/conftest.py`) |
+| Fix a manifest validation failure | `tests/validate/` — regenerate `baselines/allowed-tools.expected.json` only if the surface change is intentional |
