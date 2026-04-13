@@ -283,7 +283,6 @@ You can request multiple agents to run in parallel or sequentially:
 ## Integration with Workflow
 
 This plugin works great with:
-- **build-validator**: Run build/tests before review
 - **Project-specific agents**: Combine with your custom agents
 
 **Recommended workflow:**

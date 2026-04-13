@@ -24,6 +24,10 @@ jobs:
         uses: actions/checkout@v4
 
       - name: Run Claude Code for Issue Triage
+        # Uses Opus (vs Sonnet in claude.yml and claude-dedupe-issues.yml)
+        # because triage requires more reasoning: categorizing issues,
+        # searching for duplicates, and choosing among many lifecycle
+        # labels. Keep this in sync with the guidance in AUTOMATION.md.
         timeout-minutes: 5
         uses: anthropics/claude-code-action@v1
         env:
