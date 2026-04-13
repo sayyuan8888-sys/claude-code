@@ -20,8 +20,6 @@ def _run_hook(stdin_payload: str, home: Path, extra_env=None):
     """Run the hook with HOME redirected to a tmp dir so state files are sandboxed."""
     env = os.environ.copy()
     env["HOME"] = str(home)
-    # Make cleanup deterministic: disable the 10%-chance cleanup by seeding random
-    env["PYTHONHASHSEED"] = "0"
     if extra_env:
         env.update(extra_env)
     result = subprocess.run(
@@ -71,9 +69,9 @@ class TestMainExitContract:
             "tool_name": "Write",
             "tool_input": {"file_path": "app.py", "content": "print('hello')"},
         })
-        rc, stderr, _ = _run_hook(payload, fake_home)
-        # stdout/stderr swapped in helper: returns (rc, stdout, stderr)
+        rc, _, stderr = _run_hook(payload, fake_home)
         assert rc == 0
+        assert stderr == ""
 
     def test_disabled_via_env_exits_zero_without_processing(self, fake_home):
         payload = json.dumps({
