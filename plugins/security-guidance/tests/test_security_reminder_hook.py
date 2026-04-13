@@ -136,3 +136,35 @@ class TestStateRoundTrip:
         )
         loaded = security_reminder_hook.load_state("test")
         assert loaded == set()
+
+
+class TestCleanupOldStateFiles:
+    def test_removes_old_state_files(self, security_reminder_hook, tmp_path, monkeypatch):
+        import os
+        import time
+
+        state_dir = tmp_path / ".claude"
+        state_dir.mkdir()
+        monkeypatch.setenv("HOME", str(tmp_path))
+
+        old_file = state_dir / "security_warnings_state_old.json"
+        fresh_file = state_dir / "security_warnings_state_fresh.json"
+        unrelated_file = state_dir / "other_file.json"
+        old_file.write_text("{}")
+        fresh_file.write_text("{}")
+        unrelated_file.write_text("{}")
+
+        # Backdate old_file to 40 days ago
+        forty_days_ago = time.time() - (40 * 24 * 60 * 60)
+        os.utime(old_file, (forty_days_ago, forty_days_ago))
+
+        security_reminder_hook.cleanup_old_state_files()
+
+        assert not old_file.exists(), "old state file should be removed"
+        assert fresh_file.exists(), "fresh state file should be kept"
+        assert unrelated_file.exists(), "non-matching files should not be touched"
+
+    def test_missing_state_dir_is_noop(self, security_reminder_hook, tmp_path, monkeypatch):
+        monkeypatch.setenv("HOME", str(tmp_path))
+        # No ~/.claude dir created. Should silently no-op, not raise.
+        security_reminder_hook.cleanup_old_state_files()
