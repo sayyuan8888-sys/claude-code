@@ -54,46 +54,54 @@ class TestMarketplaceJson:
             )
 
 
+_PLUGIN_JSON_PATHS = sorted(PLUGINS_DIR.glob("*/.claude-plugin/plugin.json"))
+
+
+class TestPluginJsonDiscovery:
+    """Sanity check on the plugin.json glob itself — guards the tests below."""
+
+    def test_glob_finds_at_least_one_plugin_json(self):
+        # plugin.json is OPTIONAL per CLAUDE.md, but the bundled plugins do
+        # ship them. If the glob suddenly returns nothing, the parametrized
+        # tests below would silently pass — this test catches that regression.
+        assert _PLUGIN_JSON_PATHS, (
+            "No plugin.json files found — is the glob pattern correct?"
+        )
+
+
+@pytest.mark.parametrize("path", _PLUGIN_JSON_PATHS)
 class TestPluginJsonShape:
     """Validate individual plugin.json files where present.
 
-    plugin.json is OPTIONAL per CLAUDE.md, so we don't require presence.
-    But when a plugin ships one, it must be well-formed.
+    Parametrized so that an empty glob produces "no tests collected" rather
+    than silent passes.
     """
 
-    @staticmethod
-    def _plugin_json_paths():
-        return sorted(PLUGINS_DIR.glob("*/.claude-plugin/plugin.json"))
+    def test_parses_as_json_object(self, path):
+        data = json.loads(path.read_text())
+        assert isinstance(data, dict), f"{path} must be a JSON object"
 
-    def test_parses_as_json_object(self):
-        for path in self._plugin_json_paths():
-            data = json.loads(path.read_text())
-            assert isinstance(data, dict), f"{path} must be a JSON object"
-
-    def test_has_required_fields(self):
+    def test_has_required_fields(self, path):
         required = {"name", "description"}
-        for path in self._plugin_json_paths():
-            data = json.loads(path.read_text())
-            missing = required - set(data.keys())
-            assert not missing, f"{path} missing fields: {missing}"
+        data = json.loads(path.read_text())
+        missing = required - set(data.keys())
+        assert not missing, f"{path} missing fields: {missing}"
 
-    def test_name_matches_directory(self):
-        for path in self._plugin_json_paths():
-            data = json.loads(path.read_text())
-            dir_name = path.parent.parent.name
-            assert data.get("name") == dir_name, (
-                f"{path} name={data.get('name')!r} does not match "
-                f"directory {dir_name!r}"
-            )
+    def test_name_matches_directory(self, path):
+        data = json.loads(path.read_text())
+        dir_name = path.parent.parent.name
+        assert data.get("name") == dir_name, (
+            f"{path} name={data.get('name')!r} does not match "
+            f"directory {dir_name!r}"
+        )
 
-    def test_author_shape_when_present(self):
-        for path in self._plugin_json_paths():
-            data = json.loads(path.read_text())
-            if "author" not in data:
-                continue
-            author = data["author"]
-            assert isinstance(author, dict), f"{path}: 'author' must be an object"
-            assert "name" in author, f"{path}: 'author' missing 'name'"
+    def test_author_shape_when_present(self, path):
+        data = json.loads(path.read_text())
+        if "author" not in data:
+            pytest.skip("no author field")
+        author = data["author"]
+        assert isinstance(author, dict), f"{path}: 'author' must be an object"
+        assert "name" in author, f"{path}: 'author' missing 'name'"
 
 
 class TestPluginDirectoryConsistency:
