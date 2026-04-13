@@ -2,26 +2,19 @@
 
 Provides fixtures that load standalone Python scripts as importable modules
 (scripts that aren't part of a Python package and lack __init__.py).
+
+Note: the `security_reminder_hook` fixture lives in
+`plugins/security-guidance/tests/conftest.py` (the plugin's local conftest),
+since only plugin tests use it and keeping it there makes the plugin
+self-contained.
 """
 
 import importlib.util
-import os
-import sys
 from pathlib import Path
 
 import pytest
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
-
-
-@pytest.fixture()
-def security_reminder_hook():
-    """Import security_reminder_hook.py as a module."""
-    path = REPO_ROOT / "plugins" / "security-guidance" / "hooks" / "security_reminder_hook.py"
-    spec = importlib.util.spec_from_file_location("security_reminder_hook", path)
-    mod = importlib.util.module_from_spec(spec)
-    spec.loader.exec_module(mod)
-    return mod
 
 
 @pytest.fixture()

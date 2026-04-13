@@ -60,6 +60,16 @@ assert_file_contains() {
   fi
 }
 
+assert_stub_not_called() {
+  local calls_file="$1"
+  local msg="${2:-stub was called when it should not have been}"
+  if [[ -s "$calls_file" ]]; then
+    echo "  FAIL: $msg. Recorded calls:" >&2
+    sed 's/^/    /' "$calls_file" >&2
+    return 1
+  fi
+}
+
 # ── Test lifecycle ─────────────────────────────────────────────────
 
 begin_test() {
