@@ -1,0 +1,46 @@
+#!/usr/bin/env bash
+# Stub for `curl` used by init-firewall.sh tests.
+#
+# Three call patterns in init-firewall.sh:
+#   1. `curl -s https://api.github.com/meta`           — fetch GitHub ranges
+#   2. `curl --connect-timeout 5 https://example.com`  — MUST fail (blocked)
+#   3. `curl --connect-timeout 5 https://api.github.com/zen` — MUST succeed
+#
+# Controlled by:
+#   FW_CURL_META_FIXTURE — path to a JSON file emitted for call pattern 1.
+#                          If empty, emit nothing (simulates fetch failure).
+#   FW_CURL_EXAMPLE_EXIT — exit code for pattern 2 (default 7 — blocked).
+#   FW_CURL_GH_ZEN_EXIT  — exit code for pattern 3 (default 0 — reachable).
+
+if [[ -z "${FW_STUB_CALLS:-}" ]]; then
+  echo "curl stub: FW_STUB_CALLS not set" >&2
+  exit 99
+fi
+
+echo "curl $*" >> "$FW_STUB_CALLS"
+
+# The URL is the last positional arg in every call in init-firewall.sh.
+url="${*: -1}"
+
+case "$url" in
+  *api.github.com/meta*)
+    if [[ -n "${FW_CURL_META_FIXTURE:-}" && -f "${FW_CURL_META_FIXTURE}" ]]; then
+      cat "$FW_CURL_META_FIXTURE"
+      exit 0
+    fi
+    # No fixture → emit nothing, but still exit 0. The script's own check
+    # `[ -z "$gh_ranges" ]` then triggers its error path, which is exactly
+    # what the "fetch failure" test case wants to exercise.
+    exit 0
+    ;;
+  *example.com*)
+    exit "${FW_CURL_EXAMPLE_EXIT:-7}"
+    ;;
+  *api.github.com/zen*)
+    exit "${FW_CURL_GH_ZEN_EXIT:-0}"
+    ;;
+esac
+
+# Unknown URL — fail loudly so tests don't silently accept new call sites.
+echo "curl stub: unexpected URL '$url'" >&2
+exit 2

@@ -1,0 +1,21 @@
+#!/usr/bin/env bash
+# Stub for ipset used by init-firewall.sh tests.
+# Records invocations to $FW_STUB_CALLS; returns 0 for `destroy` and `create`;
+# returns 0 for `add`. Returns 1 only for unknown subcommands (defensive).
+
+if [[ -z "${FW_STUB_CALLS:-}" ]]; then
+  echo "ipset stub: FW_STUB_CALLS not set" >&2
+  exit 99
+fi
+
+echo "ipset $*" >> "$FW_STUB_CALLS"
+
+case "${1:-}" in
+  destroy|create|add)
+    exit 0
+    ;;
+  *)
+    echo "ipset stub: unknown subcommand '${1:-}'" >&2
+    exit 1
+    ;;
+esac

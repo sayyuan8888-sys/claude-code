@@ -1,0 +1,8 @@
+#!/usr/bin/env bash
+# Stub for the `aggregate` CIDR dedup tool used by init-firewall.sh.
+# The real aggregate merges overlapping CIDRs; for tests we just pass through
+# stdin unchanged (the fixture is already minimal / non-overlapping).
+if [[ -n "${FW_STUB_CALLS:-}" ]]; then
+  echo "aggregate $*" >> "$FW_STUB_CALLS"
+fi
+cat
