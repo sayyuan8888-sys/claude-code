@@ -26,5 +26,14 @@ jobs:
       - name: Install pytest and pyyaml
         run: pip install pytest pyyaml
 
+      - name: Install actionlint
+        run: |
+          # Official one-liner installer from rhysd/actionlint; drops the
+          # binary into the current directory, which we then move onto PATH
+          # so `scripts/run-tests.sh` can find it.
+          bash <(curl -fsSL https://raw.githubusercontent.com/rhysd/actionlint/main/scripts/download-actionlint.bash)
+          sudo mv ./actionlint /usr/local/bin/actionlint
+          actionlint -version
+
       - name: Run all tests
         run: bash scripts/run-tests.sh
