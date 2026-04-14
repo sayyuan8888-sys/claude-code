@@ -1,0 +1,30 @@
+#!/usr/bin/env bash
+# Stub for iptables used by init-firewall.sh tests.
+#
+# Behavior:
+#   - Records every invocation (argv + name "iptables-save" if invoked via that name)
+#     to $FW_STUB_CALLS, one call per line.
+#   - Always exits 0 (firewall setup in user-space would otherwise need root).
+#
+# Controlled by:
+#   FW_STUB_CALLS — required. Path to the calls log.
+#   FW_IPTABLES_SAVE_OUT — when invoked as `iptables-save`, stdout to emit
+#                          (default: empty, i.e. no existing Docker DNS rules).
+
+if [[ -z "${FW_STUB_CALLS:-}" ]]; then
+  echo "iptables stub: FW_STUB_CALLS not set" >&2
+  exit 99
+fi
+
+# Distinguish invocation as iptables vs iptables-save (symlinked).
+name="$(basename "$0")"
+echo "${name} $*" >> "$FW_STUB_CALLS"
+
+if [[ "$name" == "iptables-save" ]]; then
+  # Print the fixture (or empty line) so `grep "127\.0\.0\.11"` can run without failing.
+  if [[ -n "${FW_IPTABLES_SAVE_OUT:-}" ]]; then
+    printf '%s\n' "$FW_IPTABLES_SAVE_OUT"
+  fi
+fi
+
+exit 0

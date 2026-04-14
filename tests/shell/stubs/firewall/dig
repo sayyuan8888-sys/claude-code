@@ -1,0 +1,47 @@
+#!/usr/bin/env bash
+# Stub for `dig` used by init-firewall.sh tests.
+#
+# init-firewall.sh invokes: `dig +noall +answer A <domain>` and pipes through
+# `awk '$4 == "A" {print $5}'` to extract IPs.
+#
+# Controlled by:
+#   FW_STUB_CALLS — required.
+#   FW_DIG_MAP    — path to a "domain<tab>ip[,ip...]" file. Each domain line
+#                   maps to one or more IPs (comma-separated). Missing or
+#                   unmatched domain → emit nothing (triggers "Failed to
+#                   resolve" path in the script).
+#   FW_DIG_FORCE_BAD_IP — if set, override all lookups to emit this one IP
+#                          (used to exercise the invalid-IP rejection path).
+
+if [[ -z "${FW_STUB_CALLS:-}" ]]; then
+  echo "dig stub: FW_STUB_CALLS not set" >&2
+  exit 99
+fi
+
+echo "dig $*" >> "$FW_STUB_CALLS"
+
+# Last positional arg is the domain.
+domain="${*: -1}"
+
+if [[ -n "${FW_DIG_FORCE_BAD_IP:-}" ]]; then
+  printf '%s\t\t300\tIN\tA\t%s\n' "$domain" "$FW_DIG_FORCE_BAD_IP"
+  exit 0
+fi
+
+if [[ -z "${FW_DIG_MAP:-}" || ! -f "${FW_DIG_MAP}" ]]; then
+  # No map → no answer. Script's own check then errors.
+  exit 0
+fi
+
+# Look up the domain in the map (tab-separated: domain<TAB>ip,ip,ip).
+while IFS=$'\t' read -r d ips; do
+  [[ "$d" == "$domain" ]] || continue
+  IFS=',' read -ra ip_array <<< "$ips"
+  for ip in "${ip_array[@]}"; do
+    printf '%s\t\t300\tIN\tA\t%s\n' "$domain" "$ip"
+  done
+  exit 0
+done < "$FW_DIG_MAP"
+
+# Domain not in map → no answer.
+exit 0

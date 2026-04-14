@@ -1,0 +1,30 @@
+#!/usr/bin/env bash
+# Stub for `ip` (iproute2) used by init-firewall.sh tests.
+#
+# Only implements `ip route` — the script invokes exactly that, piping to
+# `grep default | cut -d" " -f3` to extract the host gateway IP.
+#
+# Controlled by:
+#   FW_IP_ROUTE_OUT — full stdout to emit for `ip route`. Default is a
+#                     realistic output with one default gateway.
+
+if [[ -z "${FW_STUB_CALLS:-}" ]]; then
+  echo "ip stub: FW_STUB_CALLS not set" >&2
+  exit 99
+fi
+
+echo "ip $*" >> "$FW_STUB_CALLS"
+
+if [[ "${1:-}" == "route" ]]; then
+  if [[ -n "${FW_IP_ROUTE_OUT-}" ]]; then
+    # Preserve exact formatting (including empty string when test wants
+    # "no default route" behavior).
+    printf '%s\n' "$FW_IP_ROUTE_OUT"
+  else
+    echo "default via 192.168.65.1 dev eth0"
+  fi
+  exit 0
+fi
+
+echo "ip stub: unsupported subcommand '${1:-}'" >&2
+exit 1

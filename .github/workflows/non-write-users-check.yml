@@ -34,6 +34,10 @@ jobs:
             exit 0
           fi
 
+          # Single-quoted markdown body — backticks here are literal
+          # markdown code spans, not shell command substitution. SC2016
+          # can't distinguish the two.
+          # shellcheck disable=SC2016
           gh pr comment "$PR_NUMBER" -R "$REPO" --body '<!-- non-write-users-check -->
           **`allowed_non_write_users` detected**
 

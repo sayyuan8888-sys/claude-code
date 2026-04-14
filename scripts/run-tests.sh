@@ -15,23 +15,26 @@ Usage: scripts/run-tests.sh [OPTIONS]
 Runs the project's test suites.
 
 Options:
-  --shell     Run only shell tests (tests/shell/)
-  --ts        Run only TypeScript tests (tests/ts/ via bun)
-  --python    Run only Python tests (pytest)
-  -h, --help  Show this help message
+  --shell       Run only shell tests (tests/shell/)
+  --ts          Run only TypeScript tests (tests/ts/ via bun)
+  --python      Run only Python tests (pytest)
+  --actionlint  Run only GitHub Actions workflow lint (actionlint)
+  -h, --help    Show this help message
 
-With no options, all three stages run in order (the same as CI).
+With no options, all stages run in order (the same as CI).
 USAGE
 }
 
 RUN_SHELL=0
 RUN_TS=0
 RUN_PYTHON=0
+RUN_ACTIONLINT=0
 
 if [[ $# -eq 0 ]]; then
   RUN_SHELL=1
   RUN_TS=1
   RUN_PYTHON=1
+  RUN_ACTIONLINT=1
 fi
 
 while [[ $# -gt 0 ]]; do
@@ -46,6 +49,10 @@ while [[ $# -gt 0 ]]; do
       ;;
     --python)
       RUN_PYTHON=1
+      shift
+      ;;
+    --actionlint)
+      RUN_ACTIONLINT=1
       shift
       ;;
     -h|--help)
@@ -76,6 +83,23 @@ if [[ $RUN_PYTHON -eq 1 ]]; then
   echo "=== Python tests ==="
   pytest
   echo ""
+fi
+
+if [[ $RUN_ACTIONLINT -eq 1 ]]; then
+  echo "=== GitHub Actions workflow lint (actionlint) ==="
+  if command -v actionlint >/dev/null 2>&1; then
+    # actionlint auto-runs shellcheck on `run:` blocks when shellcheck is
+    # on PATH, which gates shell-style issues in workflows too.
+    actionlint
+    echo ""
+  else
+    # Mirror how bun is treated: if the tool isn't installed locally, print
+    # a skip notice and continue. CI installs actionlint explicitly so the
+    # lint still gates there.
+    echo "actionlint not found on PATH — skipping workflow lint."
+    echo "Install it locally with: https://github.com/rhysd/actionlint"
+    echo ""
+  fi
 fi
 
 echo "=== All tests passed ==="
