@@ -88,6 +88,8 @@ fi
 if [[ $RUN_ACTIONLINT -eq 1 ]]; then
   echo "=== GitHub Actions workflow lint (actionlint) ==="
   if command -v actionlint >/dev/null 2>&1; then
+    # actionlint auto-runs shellcheck on `run:` blocks when shellcheck is
+    # on PATH, which gates shell-style issues in workflows too.
     actionlint
     echo ""
   else
